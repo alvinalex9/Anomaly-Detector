@@ -48,19 +48,16 @@ def upload():
     if not file:
         return "<h4 style='color:red;'>No file uploaded.</h4>"
 
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    file_path = os.path.join(UPLOAD_FOLDER, 'uploaded_data.csv')
     file.save(file_path)
-
-    # Detecting file encoding to prevent UTF-8 errors
-    with open(file_path, 'rb') as f:
-        raw_data = f.read()
-        result = chardet.detect(raw_data)
-        encoding = result['encoding']
 
     try:
         if file.filename.endswith('.xlsx'):
             df = pd.read_excel(file_path, engine='openpyxl')
         else:
+            with open(file_path, 'rb') as f:
+                raw_data = f.read()
+                encoding = chardet.detect(raw_data)['encoding']
             df = pd.read_csv(file_path, encoding=encoding, errors='replace')
     except Exception as e:
         return f"<h4 style='color:red;'>Error reading file: {e}</h4>"
@@ -109,29 +106,26 @@ def upload():
         <button type='submit' class='btn btn- mt-3'>Generate Charts</button>
     </form>
     '''
-
     return render_template_string(HTML_TEMPLATE, analysis=summary_html)
 
 @app.route('/visualize', methods=['POST'])
 def visualize():
     try:
-        file_path = os.path.join(UPLOAD_FOLDER, 'uploaded_data.csv')
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(os.path.join(UPLOAD_FOLDER, 'uploaded_data.csv'))
         columns = request.form.getlist('column')
         chart_type = request.form.get('chart_type')
 
         charts_html = ""
         for col in columns:
-            if col in df.columns:
-                if chart_type == 'pie':
-                    fig = px.pie(df, names=col)
-                elif chart_type == 'bar':
-                    fig = px.bar(df, x=col, y=df[col].value_counts().values)
-                elif chart_type == 'histogram':
-                    fig = px.histogram(df, x=col)
-                else:
-                    fig = px.line(df, x=df.index, y=col)
-                charts_html += fig.to_html(full_html=False)
+            if chart_type == 'pie':
+                fig = px.pie(df, names=col)
+            elif chart_type == 'bar':
+                fig = px.bar(df, x=col, y=df[col].value_counts().values)
+            elif chart_type == 'histogram':
+                fig = px.histogram(df, x=col)
+            else:
+                fig = px.line(df, x=df.index, y=col)
+            charts_html += fig.to_html(full_html=False)
 
         return f"<h5>Selected Charts:</h5>{charts_html}<br><a href='/'>Go Back</a>"
 
