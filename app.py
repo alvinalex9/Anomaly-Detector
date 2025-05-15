@@ -2,6 +2,7 @@ from flask import Flask, render_template_string, request
 import pandas as pd
 import plotly.express as px
 import os
+import chardet
 
 app = Flask(__name__)
 
@@ -47,14 +48,20 @@ def upload():
     if not file:
         return "<h4 style='color:red;'>No file uploaded.</h4>"
 
-    file_path = os.path.join(UPLOAD_FOLDER, 'uploaded_data.csv')
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(file_path)
+
+    # Detecting file encoding to prevent UTF-8 errors
+    with open(file_path, 'rb') as f:
+        raw_data = f.read()
+        result = chardet.detect(raw_data)
+        encoding = result['encoding']
 
     try:
         if file.filename.endswith('.xlsx'):
             df = pd.read_excel(file_path, engine='openpyxl')
         else:
-            df = pd.read_csv(file_path, encoding='utf-8', errors='replace')
+            df = pd.read_csv(file_path, encoding=encoding, errors='replace')
     except Exception as e:
         return f"<h4 style='color:red;'>Error reading file: {e}</h4>"
 
@@ -109,9 +116,6 @@ def upload():
 def visualize():
     try:
         file_path = os.path.join(UPLOAD_FOLDER, 'uploaded_data.csv')
-        if not os.path.exists(file_path):
-            return "<h4 style='color:red;'>Uploaded data not found. Please upload again.</h4>"
-
         df = pd.read_csv(file_path)
         columns = request.form.getlist('column')
         chart_type = request.form.get('chart_type')
