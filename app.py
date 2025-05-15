@@ -18,12 +18,13 @@ HTML_TEMPLATE = '''
         body { background-color: #f4f4f9; font-family: 'Segoe UI'; }
         .container { max-width: 960px; margin-top: 40px; }
         .btn- { background-color: #ffc72c; color: black; font-weight: bold; }
-        .-logo { width: 130px; }
+        .-logo { width: 150px; margin-bottom: 20px; }
         footer { margin-top: 20px; color: #666; font-size: 0.9em; }
     </style>
 </head>
 <body>
 <div class="container text-center">
+    <img src="https://d1csarkz8obe9u.cloudfront.net/posterpreviews/alphabet-logo-brand-logo-modern-logo-company-design-template-5286d82273e1863d743f912089beaa62_screen.jpg?ts=1704789071" class="-logo" alt="Logo">
     <h3 class="mt-3">Anomaly Detection & Insights Dashboard</h3>
     <form action="/upload" method="post" enctype="multipart/form-data" class="mb-4">
         <input type="file" name="file" class="form-control mb-2" required>
