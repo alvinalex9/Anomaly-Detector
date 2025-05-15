@@ -1,10 +1,9 @@
-from flask import Flask, render_template_string, request, send_file
+from flask import Flask, render_template_string, request
 import pandas as pd
 import numpy as np
 import plotly.express as px
 import io
 import os
-import socket
 
 app = Flask(__name__)
 
@@ -27,7 +26,6 @@ HTML_TEMPLATE = '''
 </head>
 <body>
 <div class="container text-center">
-    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRxcH5J1sgMpXB4WCadudQDGQ66H_MknKD0fG5VS1MjI1c6jR6f" class="-logo" alt=" Logo">
     <h3 class="mt-3">Anomaly Detection & Insights Dashboard</h3>
     <form action="/upload" method="post" enctype="multipart/form-data" class="mb-4">
         <input type="file" name="file" class="form-control mb-2" required>
@@ -47,14 +45,17 @@ def home():
 @app.route('/upload', methods=['POST'])
 def upload():
     file = request.files['file']
-    if not file: return "No file uploaded."
+    if not file:
+        return "No file uploaded."
 
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(file_path)
 
     try:
-        df = pd.read_excel(file_path) if file.filename.endswith('.xlsx') else pd.read_csv(file_path)
-        df.to_csv(os.path.join(UPLOAD_FOLDER, 'uploaded_data.csv'), index=False)
+        if file.filename.endswith('.xlsx'):
+            df = pd.read_excel(file_path, engine='openpyxl')
+        else:
+            df = pd.read_csv(file_path, encoding='utf-8', errors='replace')
     except Exception as e:
         return f"<h4 style='color:red;'>Error reading file: {e}</h4>"
 
@@ -90,7 +91,7 @@ def upload():
     {category_insights}
     <form method='post' action='/visualize'>
         <select name='column' multiple class="form-control mt-2">
-            {''.join([f"<option value='{col}'>{col} (Total: {df[col].nunique()} unique)</option>" for col in df.columns])}
+            {''.join([f"<option value='{col}'>{col}</option>" for col in df.columns])}
         </select>
         <select name='chart_type' class="form-control mt-2">
             <option value='bar'>Bar Chart</option>
@@ -116,13 +117,11 @@ def visualize():
                 if chart_type == 'pie':
                     fig = px.pie(df, names=col)
                 elif chart_type == 'bar':
-                    chart_data = df[col].value_counts().reset_index()
-                    chart_data.columns = ['Category', 'Count']
-                    fig = px.bar(chart_data, x='Category', y='Count', title=f"{col} Distribution")
+                    fig = px.bar(df, x=col, y=df[col].value_counts().values)
                 elif chart_type == 'histogram':
-                    fig = px.histogram(df, x=col, title=f"{col} Histogram")
+                    fig = px.histogram(df, x=col)
                 else:
-                    fig = px.line(df, x=df.index, y=col, title=f"{col} Line Chart")
+                    fig = px.line(df, x=df.index, y=col)
                 charts_html += fig.to_html(full_html=False)
 
         return f"<h5>Selected Charts:</h5>{charts_html}<br><a href='/'>Go Back</a>"
@@ -131,9 +130,4 @@ def visualize():
         return f"<h4 style='color:red;'>Error generating chart: {str(e)}</h4><br><a href='/'>Go Back</a>"
 
 if __name__ == '__main__':
-    port = socket.socket()
-    port.bind(('', 0))
-    p = port.getsockname()[1]
-    port.close()
-    print(f"Running on http://localhost:{p}")
-    app.run(debug=False, port=p)
+    app.run(host='0.0.0.0', port=8000)
