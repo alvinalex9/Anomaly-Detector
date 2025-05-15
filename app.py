@@ -1,8 +1,6 @@
 from flask import Flask, render_template_string, request
 import pandas as pd
-import numpy as np
 import plotly.express as px
-import io
 import os
 
 app = Flask(__name__)
@@ -46,9 +44,9 @@ def home():
 def upload():
     file = request.files['file']
     if not file:
-        return "No file uploaded."
+        return "<h4 style='color:red;'>No file uploaded.</h4>"
 
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    file_path = os.path.join(UPLOAD_FOLDER, 'uploaded_data.csv')
     file.save(file_path)
 
     try:
@@ -71,13 +69,13 @@ def upload():
     error_patterns = []
     for col in df.columns:
         for err in ['#REF!', '#N/A', '#DIV/0!', '#VALUE!']:
-            count = df[col].astype(str).str.contains(err).sum()
+            count = df[col].astype(str).str.contains(err, na=False).sum()
             if count > 0:
                 error_patterns.append([err, col, count])
 
     error_df = pd.DataFrame(error_patterns, columns=['Error Type', 'Column', 'Count'])
 
-    # Detailed Insights
+    # Category Insights
     category_insights = "<h5>Category Insights:</h5>"
     for col in df.select_dtypes(include=['object']).columns:
         count_data = df[col].value_counts().nlargest(10).reset_index()
@@ -85,9 +83,10 @@ def upload():
         if len(count_data) > 0:
             category_insights += f"<h6>{col} (Total: {df[col].count()})</h6>{count_data.to_html(classes='table table-bordered table-sm')}"
 
-    summary_html = f'''<h5>Summary</h5>
-    <h5>Missing Values:</h5>{missing_values.to_html(classes='table table-bordered')}
-    <h5>Error Patterns:</h5>{error_df.to_html(classes='table table-bordered') if not error_df.empty else "<p>No Error Patterns Detected.</p>"}
+    summary_html = f'''
+    <h5>Summary</h5>
+    <h5>Missing Values:</h5>{missing_values.to_html(classes='table table-bordered', index=False) if not missing_values.empty else "<p>No Missing Values</p>"}
+    <h5>Error Patterns:</h5>{error_df.to_html(classes='table table-bordered', index=False) if not error_df.empty else "<p>No Error Patterns Detected.</p>"}
     {category_insights}
     <form method='post' action='/visualize'>
         <select name='column' multiple class="form-control mt-2">
@@ -100,14 +99,19 @@ def upload():
             <option value='histogram'>Histogram</option>
         </select>
         <button type='submit' class='btn btn- mt-3'>Generate Charts</button>
-    </form>'''
+    </form>
+    '''
 
     return render_template_string(HTML_TEMPLATE, analysis=summary_html)
 
 @app.route('/visualize', methods=['POST'])
 def visualize():
     try:
-        df = pd.read_csv(os.path.join(UPLOAD_FOLDER, 'uploaded_data.csv'))
+        file_path = os.path.join(UPLOAD_FOLDER, 'uploaded_data.csv')
+        if not os.path.exists(file_path):
+            return "<h4 style='color:red;'>Uploaded data not found. Please upload again.</h4>"
+
+        df = pd.read_csv(file_path)
         columns = request.form.getlist('column')
         chart_type = request.form.get('chart_type')
 
