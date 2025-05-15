@@ -8,7 +8,7 @@ import socket
 
 app = Flask(__name__)
 
-UPLOAD_FOLDER = r'C:\Users\ZY633CY\Learning\uploads'
+UPLOAD_FOLDER = r'\uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 HTML_TEMPLATE = '''
