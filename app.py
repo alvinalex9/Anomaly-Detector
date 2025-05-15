@@ -6,6 +6,7 @@ import io
 import os
 import socket
 
+
 app = Flask(__name__)
 
 UPLOAD_FOLDER = r'\uploads'
@@ -43,7 +44,8 @@ HTML_TEMPLATE = '''
 
 @app.route('/')
 def home():
-    return render_template_string(HTML_TEMPLATE, analysis='')
+    return render_template_string("<h1>Welcome to Anomaly Detection Tool</h1>")
+
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -137,9 +139,4 @@ def visualize():
         return f"<h4 style='color:red;'>Error generating chart: {str(e)}</h4><br><a href='/'>Go Back</a>"
 
 if __name__ == '__main__':
-    port = socket.socket()
-    port.bind(('', 0))
-    p = port.getsockname()[1]
-    port.close()
-    print(f"Running on http://localhost:{p}")
-    app.run(debug=False, port=p)
+    app.run(host='0.0.0.0', port=8000)
