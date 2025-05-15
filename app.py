@@ -6,10 +6,9 @@ import io
 import os
 import socket
 
-
 app = Flask(__name__)
 
-UPLOAD_FOLDER = r'\uploads'
+UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 HTML_TEMPLATE = '''
@@ -28,14 +27,13 @@ HTML_TEMPLATE = '''
 </head>
 <body>
 <div class="container text-center">
-    <img src="/static/assets/logo.png" class="-logo" alt=" Logo">
+    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRxcH5J1sgMpXB4WCadudQDGQ66H_MknKD0fG5VS1MjI1c6jR6f" class="-logo" alt=" Logo">
     <h3 class="mt-3">Anomaly Detection & Insights Dashboard</h3>
     <form action="/upload" method="post" enctype="multipart/form-data" class="mb-4">
         <input type="file" name="file" class="form-control mb-2" required>
         <button type="submit" class="btn btn-">Upload & Analyze</button>
     </form>
     {{ analysis|safe }}
-    <div id="charts"></div>
     <footer>© Anomaly Detection Tool - All rights reserved.</footer>
 </div>
 </body>
@@ -44,8 +42,7 @@ HTML_TEMPLATE = '''
 
 @app.route('/')
 def home():
-    return render_template_string("<h1>Welcome to Anomaly Detection Tool</h1>")
-
+    return render_template_string(HTML_TEMPLATE, analysis='')
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -65,9 +62,9 @@ def upload():
         return "<h4 style='color:red;'>Uploaded file has no data.</h4>"
 
     # Missing Values
-    missing_values = df.isnull().sum()
-    missing_values = missing_values[missing_values > 0].reset_index()
+    missing_values = df.isnull().sum().reset_index()
     missing_values.columns = ['Column', 'Missing Values']
+    missing_values = missing_values[missing_values['Missing Values'] > 0]
 
     # Error Patterns
     error_patterns = []
@@ -79,11 +76,6 @@ def upload():
 
     error_df = pd.DataFrame(error_patterns, columns=['Error Type', 'Column', 'Count'])
 
-    if error_df.empty:
-        error_html = "<h5>No Error Patterns Detected.</h5>"
-    else:
-        error_html = f"<h5>Error Patterns:</h5>{error_df.to_html(classes='table table-bordered')}"
-
     # Detailed Insights
     category_insights = "<h5>Category Insights:</h5>"
     for col in df.select_dtypes(include=['object']).columns:
@@ -94,7 +86,7 @@ def upload():
 
     summary_html = f'''<h5>Summary</h5>
     <h5>Missing Values:</h5>{missing_values.to_html(classes='table table-bordered')}
-    {error_html}
+    <h5>Error Patterns:</h5>{error_df.to_html(classes='table table-bordered') if not error_df.empty else "<p>No Error Patterns Detected.</p>"}
     {category_insights}
     <form method='post' action='/visualize'>
         <select name='column' multiple class="form-control mt-2">
@@ -139,4 +131,9 @@ def visualize():
         return f"<h4 style='color:red;'>Error generating chart: {str(e)}</h4><br><a href='/'>Go Back</a>"
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000)
+    port = socket.socket()
+    port.bind(('', 0))
+    p = port.getsockname()[1]
+    port.close()
+    print(f"Running on http://localhost:{p}")
+    app.run(debug=False, port=p)
