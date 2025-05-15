@@ -1,6 +1,6 @@
 Flask==3.0.0
-pandas==1.5.3  # Use this specific version
-numpy==1.21.6  # Use this specific version (compatible with Pandas)
+pandas==2.1.1
+numpy==1.25.2
 plotly==5.14.1
 openpyxl==3.1.2
 gunicorn==20.1.0
