@@ -123,17 +123,26 @@ def visualize():
         charts_html = ""
         for col in columns:
             if col in df.columns:
-                if chart_type == 'pie':
-                    fig = px.pie(df, names=col)
-                elif chart_type == 'bar':
-                    chart_data = df[col].value_counts().reset_index()
-                    chart_data.columns = ['Category', 'Count']
-                    fig = px.bar(chart_data, x='Category', y='Count', title=f"{col} Distribution")
-                elif chart_type == 'histogram':
-                    fig = px.histogram(df, x=col, title=f"{col} Histogram")
+                # Prioritize X as Text/Category and Y as Numeric
+                if df[col].dtype in ['number']:
+                    y_col = col
+                    x_col = df.select_dtypes(include=['object', 'category']).columns[0]
                 else:
-                    fig = px.line(df, x=df.index, y=col, title=f"{col} Line Chart")
+                    x_col = col
+                    y_col = df.select_dtypes(include=['number']).columns[0]
+        
+                # Chart Generation
+                if chart_type == 'pie':
+                    fig = px.pie(df, names=x_col, values=y_col)
+                elif chart_type == 'bar':
+                    fig = px.bar(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} Distribution")
+                elif chart_type == 'histogram':
+                    fig = px.histogram(df, x=x_col, title=f"{x_col} Histogram")
+                else:
+                    fig = px.line(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} Line Chart")
+        
                 charts_html += fig.to_html(full_html=False)
+
 
         return f"<h5>Selected Charts:</h5>{charts_html}<br><a href='/'>Go Back</a>"
 
