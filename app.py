@@ -123,23 +123,23 @@ def visualize():
         charts_html = ""
         for col in columns:
             if col in df.columns:
-                # Identify if column is numeric or categorical
-                if pd.api.types.is_numeric_dtype(df[col]):
-                    y_col = col
-                    x_col = df.select_dtypes(include=['object', 'category']).columns[0] if not df.select_dtypes(include=['object', 'category']).empty else df.columns[0]
-                else:
-                    x_col = col
-                    y_col = df.select_dtypes(include=['number']).columns[0] if not df.select_dtypes(include=['number']).empty else df.columns[0]
-
-                # Chart Generation
-                if chart_type == 'pie':
-                    fig = px.pie(df, names=x_col, values=y_col, title=f"{x_col} Distribution")
-                elif chart_type == 'bar':
-                    fig = px.bar(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} Distribution")
+                # For bar and pie charts, use value counts for categorical columns
+                if chart_type in ['bar', 'pie']:
+                    data = df[col].value_counts().reset_index()
+                    data.columns = ['Category', 'Count']
+                    if chart_type == 'pie':
+                        fig = px.pie(data, names='Category', values='Count', title=f"{col} Distribution")
+                    else:
+                        fig = px.bar(data, x='Category', y='Count', title=f"{col} Distribution")
+                
+                # For histogram and line chart, use numeric values directly
                 elif chart_type == 'histogram':
-                    fig = px.histogram(df, x=x_col, title=f"{x_col} Histogram")
-                else:
-                    fig = px.line(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} Line Chart")
+                    fig = px.histogram(df, x=col, title=f"{col} Histogram")
+                elif chart_type == 'line':
+                    if pd.api.types.is_numeric_dtype(df[col]):
+                        fig = px.line(df, y=col, title=f"{col} Line Chart")
+                    else:
+                        fig = px.line(df, x=df.index, y=col, title=f"{col} Line Chart")
 
                 charts_html += fig.to_html(full_html=False)
 
@@ -150,7 +150,6 @@ def visualize():
 
     except Exception as e:
         return f"<h4 style='color:red;'>Error generating chart: {str(e)}</h4><br><a href='/'>Go Back</a>"
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
