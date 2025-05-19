@@ -22,17 +22,38 @@ HTML_TEMPLATE = '''
         .container { max-width: 960px; margin-top: 40px; }
         .logo { width: 150px; }
     </style>
-    <script>
-            function toggleYAxis() {
-                const chartType = document.getElementById("chart_type").value;
-                const yAxisDiv = document.getElementById("y_axis_div");
-                if (chartType === "bar" || chartType === "pie") {
-                    yAxisDiv.style.display = "none";
-                } else {
-                    yAxisDiv.style.display = "block";
-                }
-            }
-        </script>
+<script>
+    async function loadColumns() {
+        const response = await fetch('/get_columns');
+        const columns = await response.json();
+        const xAxisSelect = document.getElementById("x_axis");
+        const yAxisSelect = document.getElementById("y_axis");
+
+        // Clear existing options
+        xAxisSelect.innerHTML = "";
+        yAxisSelect.innerHTML = "";
+
+        // Populate columns
+        columns.forEach(col => {
+            const option = document.createElement("option");
+            option.value = col.name;
+            option.text = col.name;
+            xAxisSelect.appendChild(option.cloneNode(true));
+            yAxisSelect.appendChild(option.cloneNode(true));
+        });
+    }
+
+    function toggleAxisOptions() {
+        const chartType = document.getElementById("chart_type").value;
+        const yAxisDiv = document.getElementById("y_axis_div");
+        if (chartType === "bar" || chartType === "pie") {
+            yAxisDiv.style.display = "none";
+        } else {
+            yAxisDiv.style.display = "block";
+        }
+    }
+</script>
+
     
 </head>
 <body>
@@ -59,10 +80,11 @@ def upload():
     if not file:
         return "<h4 style='color:red;'>No file uploaded.</h4>"
 
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    file_path = os.path.join(UPLOAD_FOLDER, 'uploaded_data.csv')  # Save as a standard name
     file.save(file_path)
 
     try:
+        # Load file based on extension (CSV or Excel)
         if file.filename.endswith('.xlsx'):
             df = pd.read_excel(file_path)
         else:
@@ -71,68 +93,71 @@ def upload():
         if df.empty:
             return "<h4 style='color:red;'>Uploaded file has no data.</h4>"
 
-        # Missing Values
+        # Missing Values Detection
         missing_values = df.isnull().sum()
         missing_values = missing_values[missing_values > 0].reset_index()
         missing_values.columns = ['Column', 'Missing Values']
+        missing_values['Percentage'] = (missing_values['Missing Values'] / len(df)) * 100
 
         if missing_values.empty:
             missing_html = "<h5>No Missing Values Detected.</h5>"
         else:
             missing_html = f"<h5>Missing Values:</h5>{missing_values.to_html(classes='table table-bordered')}"
 
-        # Error Patterns
+        # Error Patterns Detection (Excel-like errors)
         error_patterns = []
         for col in df.columns:
-            for err in ['#REF!', '#N/A', '#DIV/0!', '#VALUE!']:
-                count = df[col].astype(str).str.contains(err).sum()
+            for err in ['#REF!', '#N/A', '#DIV/0!', '#VALUE!', 'NaN', 'None']:
+                count = df[col].astype(str).str.contains(err, na=False).sum()
                 if count > 0:
                     error_patterns.append([err, col, count])
 
         error_df = pd.DataFrame(error_patterns, columns=['Error Type', 'Column', 'Count'])
-
         if error_df.empty:
             error_html = "<h5>No Error Patterns Detected.</h5>"
         else:
             error_html = f"<h5>Error Patterns:</h5>{error_df.to_html(classes='table table-bordered')}"
 
-        # Detailed Insights
+        # Category Insights (Top 10 Values for Categorical Columns)
         category_insights = "<h5>Category Insights:</h5>"
-        for col in df.select_dtypes(include=['object']).columns:
+        for col in df.select_dtypes(include=['object', 'category']).columns:
             count_data = df[col].value_counts().nlargest(10).reset_index()
             count_data.columns = ['Value', 'Count']
-            if len(count_data) > 0:
-                category_insights += f"<h6>{col} (Total: {df[col].count()})</h6>{count_data.to_html(classes='table table-bordered table-sm')}"
+            if not count_data.empty:
+                category_insights += f"<h6>{col} (Top 10)</h6>{count_data.to_html(classes='table table-bordered table-sm')}"
 
-        summary_html = f'''<h5>Summary</h5>{missing_html}{error_html}{category_insights}
+        # Generate Column Selection for X and Y Axes
+        summary_html = f'''
+        <h5>Summary</h5>{missing_html}{error_html}{category_insights}
         <form method='post' action='/visualize'>
-        <label>Select X-Axis Column:</label>
-        <select name='x_axis' class="form-control mt-2">
-            {''.join([f"<option value='{col}'>{col}</option>" for col in df.columns])}
-        </select>
-
-        <div id="y_axis_div">
-            <label>Select Y-Axis Column:</label>
-            <select name='y_axis' class="form-control mt-2">
-                {''.join([f"<option value='{col}'>{col}</option>" for col in df.select_dtypes(include=['number']).columns])}
+            <label>Select X-Axis Column:</label>
+            <select name='x_axis' class="form-control mt-2">
+                {''.join([f"<option value='{col}'>{col}</option>" for col in df.columns])}
             </select>
-        </div>
 
-        <label>Select Chart Type:</label>
-        <select name='chart_type' id='chart_type' class="form-control mt-2" onchange="toggleYAxis()">
-            <option value='bar'>Bar Chart</option>
-            <option value='pie'>Pie Chart</option>
-            <option value='scatter'>Scatter Plot</option>
-            <option value='box'>Box Plot</option>
-            <option value='area'>Area Plot</option>
-            <option value='heatmap'>Heatmap</option>
-        </select>
-        
-        <button type='submit' class='btn btn-primary mt-3'>Generate Charts</button>
-        </form>'''
+            <div id="y_axis_div">
+                <label>Select Y-Axis Column:</label>
+                <select name='y_axis' class="form-control mt-2">
+                    {''.join([f"<option value='{col}'>{col}</option>" for col in df.columns])}
+                </select>
+            </div>
 
+            <label>Select Chart Type:</label>
+            <select name='chart_type' id='chart_type' class="form-control mt-2" onchange="toggleYAxis()">
+                <option value='bar'>Bar Chart</option>
+                <option value='pie'>Pie Chart</option>
+                <option value='scatter'>Scatter Plot</option>
+                <option value='box'>Box Plot</option>
+                <option value='area'>Area Plot</option>
+                <option value='heatmap'>Heatmap</option>
+            </select>
+            
+            <button type='submit' class='btn btn-primary mt-3'>Generate Charts</button>
+        </form>
+        '''
 
-        df.to_csv(os.path.join(UPLOAD_FOLDER, 'uploaded_data.csv'), index=False)
+        # Save the cleaned data for visualization
+        df.to_csv(file_path, index=False)
 
         return render_template_string(HTML_TEMPLATE, analysis=summary_html)
 
@@ -153,6 +178,7 @@ def visualize():
         if chart_type not in ['bar', 'pie'] and (y_col not in df.columns):
             return "<h4 style='color:red;'>Invalid Y-axis column selected for this chart type.</h4>"
 
+        # Generate chart based on the selected type
         if chart_type == 'bar':
             data = df[x_col].value_counts().reset_index()
             data.columns = ['Category', 'Count']
@@ -167,10 +193,10 @@ def visualize():
             fig = px.scatter(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} Scatter Plot")
 
         elif chart_type == 'box':
-            fig = px.box(df, x=x_col, y=y_col, title=f"{x_col} Distribution (Box Plot)")
+            fig = px.box(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} Box Plot")
 
         elif chart_type == 'area':
-            fig = px.area(df, x=x_col, y=y_col, title=f"{x_col} Area Chart")
+            fig = px.area(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} Area Chart")
 
         elif chart_type == 'heatmap':
             pivot_data = df.pivot_table(index=x_col, columns=y_col, aggfunc='size', fill_value=0)
@@ -179,7 +205,8 @@ def visualize():
         else:
             return "<h4 style='color:red;'>Invalid chart type selected.</h4>"
 
-        return f"<h5>Generated Chart:</h5>{fig.to_html(full_html=False)}<br><a href='/'>Go Back</a>"
+        charts_html = fig.to_html(full_html=False)
+        return f"<h5>Generated Chart:</h5>{charts_html}<br><a href='/'>Go Back</a>"
 
     except Exception as e:
         return f"<h4 style='color:red;'>Error generating chart: {str(e)}</h4><br><a href='/'>Go Back</a>"
