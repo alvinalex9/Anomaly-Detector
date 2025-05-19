@@ -123,31 +123,34 @@ def visualize():
         charts_html = ""
         for col in columns:
             if col in df.columns:
-                # Prioritize X as Text/Category and Y as Numeric
-                if df[col].dtype in ['number']:
+                # Identify if column is numeric or categorical
+                if pd.api.types.is_numeric_dtype(df[col]):
                     y_col = col
-                    x_col = df.select_dtypes(include=['object', 'category']).columns[0]
+                    x_col = df.select_dtypes(include=['object', 'category']).columns[0] if not df.select_dtypes(include=['object', 'category']).empty else df.columns[0]
                 else:
                     x_col = col
-                    y_col = df.select_dtypes(include=['number']).columns[0]
-        
+                    y_col = df.select_dtypes(include=['number']).columns[0] if not df.select_dtypes(include=['number']).empty else df.columns[0]
+
                 # Chart Generation
                 if chart_type == 'pie':
-                    fig = px.pie(df, names=x_col, values=y_col)
+                    fig = px.pie(df, names=x_col, values=y_col, title=f"{x_col} Distribution")
                 elif chart_type == 'bar':
                     fig = px.bar(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} Distribution")
                 elif chart_type == 'histogram':
                     fig = px.histogram(df, x=x_col, title=f"{x_col} Histogram")
                 else:
                     fig = px.line(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} Line Chart")
-        
+
                 charts_html += fig.to_html(full_html=False)
 
+        if charts_html == "":
+            return "<h4 style='color:red;'>No valid charts generated. Ensure selected columns have suitable data types.</h4><br><a href='/'>Go Back</a>"
 
         return f"<h5>Selected Charts:</h5>{charts_html}<br><a href='/'>Go Back</a>"
 
     except Exception as e:
         return f"<h4 style='color:red;'>Error generating chart: {str(e)}</h4><br><a href='/'>Go Back</a>"
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
