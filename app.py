@@ -101,7 +101,10 @@ def upload():
             <option value='bar'>Bar Chart</option>
             <option value='pie'>Pie Chart</option>
             <option value='line'>Line Chart</option>
-            <option value='histogram'>Histogram</option>
+            <option value='scatter'>Scatter Plot Chart</option>
+            <option value='box'>Box Plot Chart</option> 
+            <option value='area'>Area Plot Chart</option> 
+            <option value='heatmap'>HeatMap Chart</option>
         </select>
         <button type='submit' class='btn btn-primary mt-3'>Generate Charts</button>
         </form>'''
@@ -132,14 +135,36 @@ def visualize():
                     else:
                         fig = px.bar(data, x='Category', y='Count', title=f"{col} Distribution")
                 
-                # For histogram and line chart, use numeric values directly
-                elif chart_type == 'histogram':
-                    fig = px.histogram(df, x=col, title=f"{col} Histogram")
-                elif chart_type == 'line':
-                    if pd.api.types.is_numeric_dtype(df[col]):
-                        fig = px.line(df, y=col, title=f"{col} Line Chart")
+                # For Scatter Plot (X and Y must be numeric)
+                elif chart_type == 'scatter':
+                    numeric_cols = df.select_dtypes(include=['number']).columns
+                    if len(numeric_cols) >= 2:
+                        fig = px.scatter(df, x=numeric_cols[0], y=numeric_cols[1], title=f"{numeric_cols[0]} vs {numeric_cols[1]} Scatter Plot")
                     else:
-                        fig = px.line(df, x=df.index, y=col, title=f"{col} Line Chart")
+                        return f"<h4 style='color:red;'>Scatter Plot requires two numeric columns.</h4><br><a href='/'>Go Back</a>"
+
+                # For Box Plot (Distribution of a numeric column)
+                elif chart_type == 'box':
+                    if pd.api.types.is_numeric_dtype(df[col]):
+                        fig = px.box(df, y=col, title=f"{col} Distribution (Box Plot)")
+                    else:
+                        return f"<h4 style='color:red;'>Box Plot requires a numeric column.</h4><br><a href='/'>Go Back</a>"
+
+                # For Area Chart (like Line Chart but with filled area)
+                elif chart_type == 'area':
+                    if pd.api.types.is_numeric_dtype(df[col]):
+                        fig = px.area(df, x=df.index, y=col, title=f"{col} Area Chart")
+                    else:
+                        return f"<h4 style='color:red;'>Area Chart requires a numeric column.</h4><br><a href='/'>Go Back</a>"
+
+                # For Heatmap (Requires two categorical columns)
+                elif chart_type == 'heatmap':
+                    cat_cols = df.select_dtypes(include=['object', 'category']).columns
+                    if len(cat_cols) >= 2:
+                        pivot_data = df.pivot_table(index=cat_cols[0], columns=cat_cols[1], aggfunc='size', fill_value=0)
+                        fig = px.imshow(pivot_data, title=f"{cat_cols[0]} vs {cat_cols[1]} Heatmap")
+                    else:
+                        return f"<h4 style='color:red;'>Heatmap requires two categorical columns.</h4><br><a href='/'>Go Back</a>"
 
                 charts_html += fig.to_html(full_html=False)
 
