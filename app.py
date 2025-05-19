@@ -22,6 +22,18 @@ HTML_TEMPLATE = '''
         .container { max-width: 960px; margin-top: 40px; }
         .logo { width: 150px; }
     </style>
+    <script>
+            function toggleYAxis() {
+                const chartType = document.getElementById("chart_type").value;
+                const yAxisDiv = document.getElementById("y_axis_div");
+                if (chartType === "bar" || chartType === "pie") {
+                    yAxisDiv.style.display = "none";
+                } else {
+                    yAxisDiv.style.display = "block";
+                }
+            }
+        </script>
+    
 </head>
 <body>
 <div class="container text-center">
@@ -94,20 +106,31 @@ def upload():
 
         summary_html = f'''<h5>Summary</h5>{missing_html}{error_html}{category_insights}
         <form method='post' action='/visualize'>
-        <select name='column' multiple class="form-control mt-2">
-            {''.join([f"<option value='{col}'>{col} (Total: {df[col].nunique()} unique)</option>" for col in df.columns])}
+        <label>Select X-Axis Column:</label>
+        <select name='x_axis' class="form-control mt-2">
+            {''.join([f"<option value='{col}'>{col}</option>" for col in df.columns])}
         </select>
-        <select name='chart_type' class="form-control mt-2">
+
+        <div id="y_axis_div">
+            <label>Select Y-Axis Column:</label>
+            <select name='y_axis' class="form-control mt-2">
+                {''.join([f"<option value='{col}'>{col}</option>" for col in df.select_dtypes(include=['number']).columns])}
+            </select>
+        </div>
+
+        <label>Select Chart Type:</label>
+        <select name='chart_type' id='chart_type' class="form-control mt-2" onchange="toggleYAxis()">
             <option value='bar'>Bar Chart</option>
             <option value='pie'>Pie Chart</option>
-            <option value='line'>Line Chart</option>
-            <option value='scatter'>Scatter Plot Chart</option>
-            <option value='box'>Box Plot Chart</option> 
-            <option value='area'>Area Plot Chart</option> 
-            <option value='heatmap'>HeatMap Chart</option>
+            <option value='scatter'>Scatter Plot</option>
+            <option value='box'>Box Plot</option>
+            <option value='area'>Area Plot</option>
+            <option value='heatmap'>Heatmap</option>
         </select>
+        
         <button type='submit' class='btn btn-primary mt-3'>Generate Charts</button>
         </form>'''
+
 
         df.to_csv(os.path.join(UPLOAD_FOLDER, 'uploaded_data.csv'), index=False)
 
@@ -120,61 +143,47 @@ def upload():
 def visualize():
     try:
         df = pd.read_csv(os.path.join(UPLOAD_FOLDER, 'uploaded_data.csv'))
-        columns = request.form.getlist('column')
+        x_col = request.form.get('x_axis')
+        y_col = request.form.get('y_axis')
         chart_type = request.form.get('chart_type')
 
-        charts_html = ""
-        for col in columns:
-            if col in df.columns:
-                # For bar and pie charts, use value counts for categorical columns
-                if chart_type in ['bar', 'pie']:
-                    data = df[col].value_counts().reset_index()
-                    data.columns = ['Category', 'Count']
-                    if chart_type == 'pie':
-                        fig = px.pie(data, names='Category', values='Count', title=f"{col} Distribution")
-                    else:
-                        fig = px.bar(data, x='Category', y='Count', title=f"{col} Distribution")
-                
-                # For Scatter Plot (X and Y must be numeric)
-                elif chart_type == 'scatter':
-                    numeric_cols = df.select_dtypes(include=['number']).columns
-                    if len(numeric_cols) >= 2:
-                        fig = px.scatter(df, x=numeric_cols[0], y=numeric_cols[1], title=f"{numeric_cols[0]} vs {numeric_cols[1]} Scatter Plot")
-                    else:
-                        return f"<h4 style='color:red;'>Scatter Plot requires two numeric columns.</h4><br><a href='/'>Go Back</a>"
+        if x_col not in df.columns:
+            return "<h4 style='color:red;'>Invalid X-axis column selected.</h4>"
 
-                # For Box Plot (Distribution of a numeric column)
-                elif chart_type == 'box':
-                    if pd.api.types.is_numeric_dtype(df[col]):
-                        fig = px.box(df, y=col, title=f"{col} Distribution (Box Plot)")
-                    else:
-                        return f"<h4 style='color:red;'>Box Plot requires a numeric column.</h4><br><a href='/'>Go Back</a>"
+        if chart_type not in ['bar', 'pie'] and (y_col not in df.columns):
+            return "<h4 style='color:red;'>Invalid Y-axis column selected for this chart type.</h4>"
 
-                # For Area Chart (like Line Chart but with filled area)
-                elif chart_type == 'area':
-                    if pd.api.types.is_numeric_dtype(df[col]):
-                        fig = px.area(df, x=df.index, y=col, title=f"{col} Area Chart")
-                    else:
-                        return f"<h4 style='color:red;'>Area Chart requires a numeric column.</h4><br><a href='/'>Go Back</a>"
+        if chart_type == 'bar':
+            data = df[x_col].value_counts().reset_index()
+            data.columns = ['Category', 'Count']
+            fig = px.bar(data, x='Category', y='Count', title=f"{x_col} Distribution")
 
-                # For Heatmap (Requires two categorical columns)
-                elif chart_type == 'heatmap':
-                    cat_cols = df.select_dtypes(include=['object', 'category']).columns
-                    if len(cat_cols) >= 2:
-                        pivot_data = df.pivot_table(index=cat_cols[0], columns=cat_cols[1], aggfunc='size', fill_value=0)
-                        fig = px.imshow(pivot_data, title=f"{cat_cols[0]} vs {cat_cols[1]} Heatmap")
-                    else:
-                        return f"<h4 style='color:red;'>Heatmap requires two categorical columns.</h4><br><a href='/'>Go Back</a>"
+        elif chart_type == 'pie':
+            data = df[x_col].value_counts().reset_index()
+            data.columns = ['Category', 'Count']
+            fig = px.pie(data, names='Category', values='Count', title=f"{x_col} Distribution")
 
-                charts_html += fig.to_html(full_html=False)
+        elif chart_type == 'scatter':
+            fig = px.scatter(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} Scatter Plot")
 
-        if charts_html == "":
-            return "<h4 style='color:red;'>No valid charts generated. Ensure selected columns have suitable data types.</h4><br><a href='/'>Go Back</a>"
+        elif chart_type == 'box':
+            fig = px.box(df, x=x_col, y=y_col, title=f"{x_col} Distribution (Box Plot)")
 
-        return f"<h5>Selected Charts:</h5>{charts_html}<br><a href='/'>Go Back</a>"
+        elif chart_type == 'area':
+            fig = px.area(df, x=x_col, y=y_col, title=f"{x_col} Area Chart")
+
+        elif chart_type == 'heatmap':
+            pivot_data = df.pivot_table(index=x_col, columns=y_col, aggfunc='size', fill_value=0)
+            fig = px.imshow(pivot_data, title=f"{x_col} vs {y_col} Heatmap")
+
+        else:
+            return "<h4 style='color:red;'>Invalid chart type selected.</h4>"
+
+        return f"<h5>Generated Chart:</h5>{fig.to_html(full_html=False)}<br><a href='/'>Go Back</a>"
 
     except Exception as e:
         return f"<h4 style='color:red;'>Error generating chart: {str(e)}</h4><br><a href='/'>Go Back</a>"
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
